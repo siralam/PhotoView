@@ -350,7 +350,6 @@ public class PhotoViewAttacher implements View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, MotionEvent ev) {
-
         if (mAdditionalOnTouchListener != null) {
             if (mAdditionalOnTouchListener.onTouch(v, ev)) { //It consumed
                 return true;
