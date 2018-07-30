@@ -1,5 +1,7 @@
 package com.github.chrisbanes.photoview;
 
+import android.content.Context;
+import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.widget.ImageView;
 
@@ -33,5 +35,9 @@ class Util {
 
     static int getPointerIndex(int action) {
         return (action & MotionEvent.ACTION_POINTER_INDEX_MASK) >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
+    }
+
+    static int dpToPixel (Context context, int fromDp) {
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, fromDp, context.getResources().getDisplayMetrics());
     }
 }

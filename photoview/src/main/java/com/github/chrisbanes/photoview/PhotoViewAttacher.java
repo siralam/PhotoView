@@ -45,10 +45,12 @@ public class PhotoViewAttacher implements View.OnTouchListener,
     private static float DEFAULT_MIN_SCALE = 1.0f;
     private static int DEFAULT_ZOOM_DURATION = 200;
 
-    private static final int EDGE_NONE = -1;
-    private static final int EDGE_LEFT = 0;
-    private static final int EDGE_RIGHT = 1;
-    private static final int EDGE_BOTH = 2;
+    private static final int EDGE_NONE = 0x00000000;
+    private static final int EDGE_LEFT = 0x00001000;
+    private static final int EDGE_RIGHT = 0x00000010;
+    private static final int EDGE_TOP = 0x00000100;
+    private static final int EDGE_BOTTOM = 0x00000001;
+    private static final int EDGE_ALL = 0x00001111;
     private static int SINGLE_TOUCH = 1;
 
     private Interpolator mInterpolator = new AccelerateDecelerateInterpolator();
@@ -85,7 +87,7 @@ public class PhotoViewAttacher implements View.OnTouchListener,
     private OnViewDragListener mOnViewDragListener;
 
     private FlingRunnable mCurrentFlingRunnable;
-    private int mScrollEdge = EDGE_BOTH;
+    private int mScrollEdge = EDGE_LEFT | EDGE_RIGHT;
     private float mBaseRotation;
 
     private boolean mZoomEnabled = true;
@@ -119,12 +121,22 @@ public class PhotoViewAttacher implements View.OnTouchListener,
          */
             ViewParent parent = mImageView.getParent();
             if (mAllowParentInterceptOnEdge && !mScaleDragDetector.isScaling() && !mBlockParentIntercept) {
-                if (mScrollEdge == EDGE_BOTH
-                        || (mScrollEdge == EDGE_LEFT && dx >= 1f)
-                        || (mScrollEdge == EDGE_RIGHT && dx <= -1f)) {
-                    if (parent != null) {
-                        parent.requestDisallowInterceptTouchEvent(false);
-                    }
+                boolean shouldLetParentIntercept = false;
+                boolean isUserScrollingVertically = Math.abs(dx) == 0 || Math.abs(dy) / Math.abs(dx) > 1.5f;
+                boolean isUserScrollingHorizontally = Math.abs(dy) == 0 || Math.abs(dx) / Math.abs(dy) > 1.5f;
+                if (mScrollEdge == EDGE_ALL) {
+                    shouldLetParentIntercept = true;
+                } else if (isUserScrollingVertically && dy > 0f) { //User is trying to drag downward
+                    shouldLetParentIntercept = (mScrollEdge & EDGE_TOP) == EDGE_TOP;
+                } else if (isUserScrollingVertically && dy < 0f) { //User is trying to drag upward
+                    shouldLetParentIntercept = (mScrollEdge & EDGE_BOTTOM) == EDGE_BOTTOM;
+                } else if (isUserScrollingHorizontally && dx > 0f) { //User is trying to drag to the right
+                    shouldLetParentIntercept = (mScrollEdge & EDGE_RIGHT) == EDGE_RIGHT;
+                } else if (isUserScrollingHorizontally && dx < 0f) { //User is trying to drag to the left
+                    shouldLetParentIntercept = (mScrollEdge & EDGE_LEFT) == EDGE_LEFT;
+                }
+                if (parent != null) {
+                    parent.requestDisallowInterceptTouchEvent(!shouldLetParentIntercept);
                 }
             } else {
                 if (parent != null) {
@@ -361,7 +373,7 @@ public class PhotoViewAttacher implements View.OnTouchListener,
         boolean handled = false;
 
         if (mZoomEnabled && Util.hasDrawable((ImageView) v)) {
-            switch (ev.getAction()) {
+            switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     ViewParent parent = v.getParent();
                     // First, disable the Parent from intercepting the touch
@@ -374,7 +386,6 @@ public class PhotoViewAttacher implements View.OnTouchListener,
                     // fling
                     cancelFling();
                     break;
-
                 case MotionEvent.ACTION_CANCEL:
                 case MotionEvent.ACTION_UP:
                     // If the user has zoomed less than min scale, zoom back
@@ -697,56 +708,66 @@ public class PhotoViewAttacher implements View.OnTouchListener,
 
     private boolean checkMatrixBounds() {
 
-        final RectF rect = getDisplayRect(getDrawMatrix());
-        if (rect == null) {
+        final RectF displayRect = getDisplayRect(getDrawMatrix());
+        if (displayRect == null) {
             return false;
         }
 
-        final float height = rect.height(), width = rect.width();
+        final float displayRectHeight = displayRect.height();
+        final float displayRectWidth = displayRect.width();
         float deltaX = 0, deltaY = 0;
 
         final int viewHeight = getImageViewHeight(mImageView);
-        if (height <= viewHeight) {
+        int verticalEdge;
+        if (displayRectHeight <= viewHeight) {
             switch (mScaleType) {
                 case FIT_START:
-                    deltaY = -rect.top;
+                    deltaY = -displayRect.top;
                     break;
                 case FIT_END:
-                    deltaY = viewHeight - height - rect.top;
+                    deltaY = viewHeight - displayRectHeight - displayRect.top;
                     break;
                 default:
-                    deltaY = (viewHeight - height) / 2 - rect.top;
+                    deltaY = (viewHeight - displayRectHeight) / 2 - displayRect.top;
                     break;
             }
-        } else if (rect.top > 0) {
-            deltaY = -rect.top;
-        } else if (rect.bottom < viewHeight) {
-            deltaY = viewHeight - rect.bottom;
+            verticalEdge = EDGE_TOP | EDGE_BOTTOM;
+        } else if (displayRect.top > 0) {
+            deltaY = -displayRect.top;
+            verticalEdge = EDGE_TOP;
+        } else if (displayRect.bottom < viewHeight) {
+            deltaY = viewHeight - displayRect.bottom;
+            verticalEdge = EDGE_BOTTOM;
+        } else {
+            verticalEdge = EDGE_NONE;
         }
 
         final int viewWidth = getImageViewWidth(mImageView);
-        if (width <= viewWidth) {
+        int horizontalEdge;
+        if (displayRectWidth <= viewWidth) {
             switch (mScaleType) {
                 case FIT_START:
-                    deltaX = -rect.left;
+                    deltaX = -displayRect.left;
                     break;
                 case FIT_END:
-                    deltaX = viewWidth - width - rect.left;
+                    deltaX = viewWidth - displayRectWidth - displayRect.left;
                     break;
                 default:
-                    deltaX = (viewWidth - width) / 2 - rect.left;
+                    deltaX = (viewWidth - displayRectWidth) / 2 - displayRect.left;
                     break;
             }
-            mScrollEdge = EDGE_BOTH;
-        } else if (rect.left > 0) {
-            mScrollEdge = EDGE_LEFT;
-            deltaX = -rect.left;
-        } else if (rect.right < viewWidth) {
-            deltaX = viewWidth - rect.right;
-            mScrollEdge = EDGE_RIGHT;
+            horizontalEdge = EDGE_LEFT | EDGE_RIGHT;
+        } else if (displayRect.left > 0) {
+            horizontalEdge = EDGE_LEFT;
+            deltaX = -displayRect.left;
+        } else if (displayRect.right < viewWidth) {
+            deltaX = viewWidth - displayRect.right;
+            horizontalEdge = EDGE_RIGHT;
         } else {
-            mScrollEdge = EDGE_NONE;
+            horizontalEdge = EDGE_NONE;
         }
+
+        mScrollEdge = verticalEdge | horizontalEdge;
 
         // Finally actually translate the matrix
         mSuppMatrix.postTranslate(deltaX, deltaY);
