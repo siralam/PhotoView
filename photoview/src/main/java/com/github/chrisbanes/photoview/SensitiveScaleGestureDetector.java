@@ -361,7 +361,7 @@ public class SensitiveScaleGestureDetector {
 
     /**
      * Return whether the quick scale gesture, in which the user performs a double tap followed by a
-     * swipe, should perform scaling. {@see #setQuickScaleEnabled(boolean)}.
+     * swipe, should perform scaling.
      */
     public boolean isQuickScaleEnabled() {
         return mQuickScaleEnabled;
@@ -380,7 +380,7 @@ public class SensitiveScaleGestureDetector {
 
     /**
      * Return whether the stylus scale gesture, in which the user uses a stylus and presses the
-     * button, should perform scaling. {@see #setStylusScaleEnabled(boolean)}
+     * button, should perform scaling.
      */
     public boolean isStylusScaleEnabled() {
         return mStylusScaleEnabled;
